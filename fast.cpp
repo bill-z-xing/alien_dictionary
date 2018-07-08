@@ -3,6 +3,9 @@
 
 constexpr size_t kNumPossibleChars = (1lu << (CHAR_BIT * sizeof(char)));
 
+constexpr int kDepInvalid = std::numeric_limits<int>::min();
+constexpr int kDepCycle = std::numeric_limits<int>::max();
+
 class Solution 
 {
     
@@ -12,11 +15,11 @@ public:
     string alienOrder(vector<string>& words) 
     {
         // Initialize
-        dependency_order.fill( std::numeric_limits<int>::min() );
-        //must_appear_before.fill(std::unordered_set<char>() );
+        dependency_order.fill( kDepInvalid );
         must_appear_after.fill( std::unordered_set<char>() );
         chars_forgotten.reset();
         
+        // Step 0: mark every character seen in chars_forgotten set
         for (size_t i = 0; i < words.size(); ++i)
         {
             for (char c : words[i])
@@ -25,7 +28,10 @@ public:
             }
         }
         
-        // Step 1: detect all dependencies        
+        // Step 1: detect all dependencies
+        // Also unmark characters in chars_forgotten seen in the dependency set,
+        // what's left in chars_forgotten are characters that has no dependency info
+        // but still needs to be included in the output.    
         for (size_t i = 1; i < words.size(); ++i)
         {
             add_dependencies(words[i-1], words[i]);
@@ -53,8 +59,10 @@ public:
         for (size_t i = 0; i < dependency_order.size(); ++i)
         {
             int dep = dependency_order[i];
-            if (dep != std::numeric_limits<int>::min() && dep != std::numeric_limits<int>::max())
+
+            if (dep != kDepInvalid && dep != kDepCycle)
             {
+                assert(dep >= 0);
                 if (dep >= static_cast<int>(result.size()))
                 {
                     result.resize(dep + 1);
@@ -63,7 +71,7 @@ public:
             }            
         }
         
-        // Step 4: Build Output
+        // Step 4: Build Final Output
         std::string final_result;
         for (auto iter = result.rbegin(); iter != result.rend(); ++iter)
         {
@@ -72,7 +80,6 @@ public:
                 final_result.push_back(c);
             }
         }
-        
         for (size_t i = 0; i < kNumPossibleChars; ++i)
         {
             if (chars_forgotten[i])
@@ -82,7 +89,6 @@ public:
         }
         
         return std::move(final_result);
-                
     }
     
 private:
@@ -93,7 +99,7 @@ private:
         
         recurse_assign_dependency_number(c, discovered);
         
-        bool cycle = (dependency_order[c] == std::numeric_limits<int>::max());
+        bool cycle = (dependency_order[c] == kDepCycle);
         return cycle;
     }
     
@@ -106,10 +112,10 @@ private:
         {
             //std::cout << "Exit " << c << " Discovered" << std::endl;
             
-            // Cycle!
-            if (dependency_order[c] == std::numeric_limits<int>::min())
+            // Discovering a node that's undone, meaning we're in a cycle!
+            if (dependency_order[c] == kDepInvalid)
             {
-                dependency_order[c] = std::numeric_limits<int>::max();
+                dependency_order[c] = kDepCycle;
             }
             return;
         }
@@ -125,24 +131,25 @@ private:
         }
         
         // Deduce solution from children and also propagate cycle upstrea
-        int dep = std::numeric_limits<int>::min();
+        int dep = kDepInvalid;
         for (char child : must_appear_after[c])
         {
             recurse_assign_dependency_number(child, discovered);
             
-            assert(dependency_order[child] != std::numeric_limits<int>::min());
+            assert(dependency_order[child] != kDepInvalid);
 
-            if (dependency_order[child] != std::numeric_limits<int>::max())
+            if (dependency_order[child] != kDepCycle)
             {
                 dep = std::max(dep, dependency_order[child] + 1);
             }
             else
             {
                 // Child has cycle below. Propagate it upwards.
-                dep = std::numeric_limits<int>::max();
+                dep = kDepCycle;
             }
         }
         // Commit only after children are done
+        assert(dep != kDepInvalid);
         dependency_order[c] = dep;
         
         //std::cout << "Exit " << c << " Complete " << dependency_order[c] << std::endl;
@@ -161,7 +168,6 @@ private:
                 chars_forgotten[b[i]] = false;
   
                 //std::cout << a[i] << ' ' << b[i] << std::endl;
-                //must_appear_before[b[i]].insert(a[i]);
                 must_appear_after[a[i]].insert(b[i]);
                 
                 break;
@@ -169,7 +175,6 @@ private:
         }
     }
     
-    //std::array<std::unordered_set<char>, kNumPossibleChars> must_appear_before; 
     std::array<std::unordered_set<char>, kNumPossibleChars> must_appear_after;
     std::bitset<kNumPossibleChars> chars_forgotten;
     std::array<int, kNumPossibleChars> dependency_order;
