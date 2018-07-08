@@ -49,12 +49,16 @@ public:
         }
         
         // Step 3: Sort letters by dependency!
-        std::map<int, std::set<char>> result;
+        std::vector<std::set<char>> result;
         for (size_t i = 0; i < dependency_order.size(); ++i)
         {
             int dep = dependency_order[i];
             if (dep != std::numeric_limits<int>::min() && dep != std::numeric_limits<int>::max())
             {
+                if (dep >= static_cast<int>(result.size()))
+                {
+                    result.resize(dep + 1);
+                }
                 result[dep].insert(i);
             }            
         }
@@ -63,7 +67,7 @@ public:
         std::string final_result;
         for (auto iter = result.rbegin(); iter != result.rend(); ++iter)
         {
-            for (char c: iter->second)
+            for (char c: *iter)
             {
                 final_result.push_back(c);
             }
